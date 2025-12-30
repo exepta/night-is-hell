@@ -6,6 +6,7 @@ pub mod config;
 pub mod key_utils;
 pub mod debug;
 pub mod entities;
+pub mod camera;
 
 use bevy::prelude::*;
 use crate::entities::EntitiesModule;
