@@ -12,7 +12,8 @@ path = "src/main.rs"
 [workspace]
 members = [
     "crates/game_models",
-    "crates/game_ui"
+    "crates/game_ui",
+    "crates/game_logic"
 ]
 
 [features]
@@ -47,6 +48,9 @@ path = "crates/game_models"
 
 [dependencies.game_ui]
 path = "crates/game_ui"
+
+[dependencies.game_logic]
+path = "crates/game_logic"
 
 ##############################################
 #               Dependencies                 #
