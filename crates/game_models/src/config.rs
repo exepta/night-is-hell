@@ -133,6 +133,10 @@ pub struct InputConfig {
     /// Toggle gizmo/boxes visualization.
     pub gizmos_boxen: String,
 
+    /// Move character up.
+    pub movement_up: String,
+    /// Move character dow.
+    pub movement_down: String,
     /// Move character left.
     pub movement_left: String,
     /// Move character right.
@@ -151,6 +155,8 @@ impl Default for InputConfig {
             system_info: String::from("F3"),
             gizmos_boxen: String::from("F9"),
 
+            movement_up: String::from("W"),
+            movement_down: String::from("S"),
             movement_left: String::from("A"),
             movement_right: String::from("D"),
             movement_jump: String::from("Space"),
