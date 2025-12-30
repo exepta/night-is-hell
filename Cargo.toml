@@ -1,0 +1,84 @@
+[package]
+name = "night-is-hell"
+version = "0.1.0"
+edition = "2024"
+authors = ["Daniel Ramke <genshin.exepta@outlook.com>"]
+exclude = ["dist", "build", "assets", "credits", "conf"]
+
+[[bin]]
+name = "night-is-hell"
+path = "src/main.rs"
+
+[workspace]
+members = [
+    "crates/game_models",
+    "crates/game_ui"
+]
+
+[features]
+v_ram_nvml = []   # NVIDIA per-process via NVML (Windows/Linux)
+v_ram_dxgi = []   # Windows adapter-wide via DXGI (AMD & NVIDIA)
+v_ram_metal = []  # macOS device-wide via Metal
+
+##############################################
+#                 Profiles                   #
+##############################################
+
+[profile.release]
+panic = "unwind"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = true
+
+##############################################
+#                  Crates                    #
+##############################################
+
+[dependencies.game_models]
+path = "crates/game_models"
+
+[dependencies.game_ui]
+path = "crates/game_ui"
+
+##############################################
+#               Dependencies                 #
+##############################################
+
+# Main dependency for the project. This is absolutely needed for work with
+# graphics and systems. If you change the Version, make sure that you change it
+# in all crates of the project!
+[dependencies.bevy]
+version = "0.17.3"
+features = ["file_watcher", "webp", "jpeg", "png"]
+default-features = true
+
+# Bevy Rapier3D for initialized game physics
+[dependencies.bevy_rapier3d]
+version = "0.32.0"
+features = ["debug-render-3d", "simd-nightly", "default"]
+
+# Bevy Inspector UI for debug things
+[dependencies.bevy-inspector-egui]
+version = "0.35.0"
+
+# Tracing Subscriber for look up traces in logs and for print them
+# into a log file
+[dependencies.tracing-subscriber]
+version = "0.3.22"
+
+# Date util for handle colcks
+[dependencies.chrono]
+version = "0.4.42"
+features = ["clock"]
+
+# Environment file support for better settings
+[dependencies.dotenvy]
+version = "0.15.7"

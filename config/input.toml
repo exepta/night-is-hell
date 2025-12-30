@@ -1,0 +1,26 @@
+# This file contains all game inputs. You can change it here or
+# in the game at the settings ui.
+
+##############################################
+#                   Debug                    #
+##############################################
+
+inspector = "F1"
+system_info = "F3"
+gizmos_boxen = "F9"
+
+##############################################
+#                 Movement                   #
+##############################################
+
+movement_up = "W"
+movement_down = "S"
+movement_left = "A"
+movement_right = "D"
+movement_jump = "Space"
+
+##############################################
+#                  Overlay                   #
+##############################################
+
+interact = "E"

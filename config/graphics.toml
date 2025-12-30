@@ -1,0 +1,12 @@
+# This file contains all things for game video settings. You can
+# change the most of this ingame. Note: variables with #OnlyFile
+# can change here only!
+
+##############################################
+#                  Window                    #
+##############################################
+
+window_resolution = "1270x720"
+fullscreen = false
+vsync = true
+video_backend = "AUTO"

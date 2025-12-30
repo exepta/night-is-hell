@@ -1,0 +1,61 @@
+[package]
+name = "game_models"
+version = "0.0.1"
+edition = "2024"
+authors = ["Daniel Ramke <genshin.exepta@outlook.com>"]
+
+[lib]
+name = "game_models"
+path = "src/lib.rs"
+
+[features]
+default = []
+# Use dep to control the dependencies which ar activated by the feature
+v_ram_nvml  = ["dep:nvml-wrapper"]  # NVIDIA per-process (Win/Linux)
+v_ram_dxgi  = ["dep:windows"]       # Windows adapter-wide (AMD & NVIDIA)
+v_ram_metal = ["dep:metal"]         # macOS device-wide
+
+##############################################
+#               Dependencies                 #
+##############################################
+
+# Main dependency for the project. This is absolutely needed for work with
+# graphics and systems. If you change the Version, make sure that you change it
+# in all crates of the project!
+[dependencies.bevy]
+version = "0.17.3"
+default-features = true
+
+# Bevy Rapier3D for initialized game physics
+[dependencies.bevy_rapier3d]
+version = "0.32.0"
+features = ["debug-render-3d", "simd-nightly", "default"]
+
+# Serde for seralize structs
+[dependencies.serde]
+version = "^1.0"
+features = ["derive"]
+
+# Serde JSON for handle struct by json files
+[dependencies.serde_json]
+version = "^1.0"
+
+# TOML file support for our config files
+[dependencies.toml]
+version = "0.9.6"
+features = ["parse", "display"]
+
+# Fetch system information for windows, linux and Mac
+[dependencies.sysinfo]
+version = "0.37.1"
+
+[dependencies]
+nvml-wrapper = { version = "0.11.0", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.0", optional = true, features = [
+    "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = { version = "0.33.0", optional = true }
