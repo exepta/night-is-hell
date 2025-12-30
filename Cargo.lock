@@ -2954,6 +2954,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "game_logic"
+version = "0.0.1"
+dependencies = [
+ "bevy",
+ "game_models",
+ "sysinfo",
+]
+
+[[package]]
 name = "game_models"
 version = "0.0.1"
 dependencies = [
@@ -4202,6 +4211,7 @@ dependencies = [
  "bevy_rapier3d",
  "chrono",
  "dotenvy",
+ "game_logic",
  "game_models",
  "game_ui",
  "tracing-subscriber",

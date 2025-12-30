@@ -1,3 +1,6 @@
+pub mod player;
+pub mod character;
+
 use bevy::prelude::*;
 
 pub struct EntitiesModule;

@@ -262,6 +262,7 @@ mod manager {
     use bevy::light::DirectionalLightShadowMap;
     use bevy::prelude::*;
     use bevy_rapier3d::prelude::*;
+    use game_logic::GameLogicPlugin;
     use game_models::config::GlobalConfig;
     use game_models::debug::WorldInspectorState;
     use game_models::GameCorePlugin;
@@ -279,7 +280,7 @@ mod manager {
                 ..default()
             });
 
-            app.add_plugins((GameCorePlugin, GameUiPlugin));
+            app.add_plugins((GameCorePlugin, GameLogicPlugin, GameUiPlugin));
 
             app.add_systems(Startup, setup_shadow_map);
             app.add_systems(Update, (toggle_world_inspector, toggle_debug_system));

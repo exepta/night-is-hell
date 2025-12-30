@@ -5,7 +5,7 @@ pub mod v_ram_detection;
 pub mod config;
 pub mod key_utils;
 pub mod debug;
-mod entities;
+pub mod entities;
 
 use bevy::prelude::*;
 use crate::entities::EntitiesModule;
