@@ -10,14 +10,21 @@ pub fn setup_test_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 75.0,
+        affects_lightmapped_meshes: false,
+    });
     spawn_test_player_cube(&mut commands, &mut meshes, &mut materials);
     commands.spawn((
         PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
+            intensity: 12000.0,
+            range: 30.0,
+            color: Color::srgb(1.0, 0.95, 0.85),
+            shadows_enabled: false,
             ..default()
         },
-        Transform::from_xyz(4.0, 8.0, 4.0),
+        Transform::from_xyz(6.0, 10.0, 6.0),
     ));
 
     commands.spawn((
@@ -27,6 +34,13 @@ pub fn setup_test_scene(
             radius: 8.0,
             yaw: 0.0,
             pitch: -0.3,
+            target_radius: 8.0,
+            target_yaw: 0.0,
+            target_pitch: -0.3,
+            rotation_smoothness: 12.0,
+            zoom_smoothness: 10.0,
+            position_smoothness: 14.0,
+            follow_offset: Vec3::new(0.0, 1.2, 0.0),
         },
         Camera {
             order: 0,
@@ -58,6 +72,7 @@ pub fn orbit_camera_controls(
     mut motion_events: MessageReader<MouseMotion>,
     mut wheel_events: MessageReader<MouseWheel>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
+    time: Res<Time>,
     mut cameras: Query<(&mut OrbitCamera, &mut Transform), With<Camera>>,
     targets: Query<&Transform, (With<Player>, Without<Camera>)>,
 ) {
@@ -78,18 +93,29 @@ pub fn orbit_camera_controls(
 
     for (mut orbit, mut transform) in cameras.iter_mut() {
         if mouse_buttons.pressed(MouseButton::Left) {
-            orbit.yaw -= motion_delta.x * 0.005;
-            orbit.pitch -= motion_delta.y * 0.005;
-            orbit.pitch = orbit.pitch.clamp(-1.5, 1.5);
+            orbit.target_yaw -= motion_delta.x * 0.005;
+            orbit.target_pitch -= motion_delta.y * 0.005;
+            orbit.target_pitch = orbit.target_pitch.clamp(-1.2, 1.2);
         }
 
         if scroll_delta.abs() > f32::EPSILON {
-            orbit.radius = (orbit.radius - scroll_delta * 0.5).clamp(2.0, 20.0);
+            orbit.target_radius = (orbit.target_radius - scroll_delta * 0.6).clamp(3.0, 18.0);
         }
+
+        let dt = time.delta_secs();
+        let rotation_t = 1.0 - (-orbit.rotation_smoothness * dt).exp();
+        let zoom_t = 1.0 - (-orbit.zoom_smoothness * dt).exp();
+        let position_t = 1.0 - (-orbit.position_smoothness * dt).exp();
+
+        orbit.yaw = orbit.yaw.lerp(orbit.target_yaw, rotation_t);
+        orbit.pitch = orbit.pitch.lerp(orbit.target_pitch, rotation_t);
+        orbit.radius = orbit.radius.lerp(orbit.target_radius, zoom_t);
 
         let rotation = Quat::from_rotation_y(orbit.yaw) * Quat::from_rotation_x(orbit.pitch);
         let offset = rotation * Vec3::new(0.0, 0.0, orbit.radius);
-        transform.translation = target.translation + offset;
-        transform.look_at(target.translation, Vec3::Y);
+        let focus_point = target.translation + orbit.follow_offset;
+        let desired_translation = focus_point + offset;
+        transform.translation = transform.translation.lerp(desired_translation, position_t);
+        transform.look_at(focus_point, Vec3::Y);
     }
 }
