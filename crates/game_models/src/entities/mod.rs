@@ -6,15 +6,27 @@ use std::path::Path;
 use bevy::prelude::*;
 use serde::Deserialize;
 use crate::constants::ENTITY_JSON_PATH;
+use crate::entities::character::Character;
 
 pub struct EntitiesModule;
 
 impl Plugin for EntitiesModule {
 
     #[coverage(off)]
-    fn build(&self, _app: &mut App) {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<EntitiesData>();
+        app.init_resource::<Characters>();
     }
 }
+
+
+#[derive(Resource, Debug, Default, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct EntitiesData(pub Vec<EntityBaseInformation>);
+
+#[derive(Resource, Debug, Default, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct Characters(pub Vec<Character>);
 
 #[derive(Debug, Clone, Reflect, Deserialize, PartialEq)]
 pub struct EntityBaseInformation {

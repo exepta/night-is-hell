@@ -66,7 +66,9 @@ pub enum InGameStates {
     #[default]
     Game,
     /// The game is paused.
-    Pause,
+    PauseMenu,
+    /// The character selection menu.
+    CharacterMenu,
     /// Turn-based or real-time combat phase.
     Combat,
     /// Game over screen or logic.

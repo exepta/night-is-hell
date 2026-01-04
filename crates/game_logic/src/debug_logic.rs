@@ -1,10 +1,10 @@
 use bevy::diagnostic::{DiagnosticsStore, EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
-use bevy::prelude::{in_state, App, IntoScheduleConfigs, OnEnter, Plugin, Res, ResMut, Time, Update};
+use bevy::prelude::{App, IntoScheduleConfigs, OnEnter, Plugin, Res, ResMut, Time, Update};
 use bevy::render::renderer::RenderAdapterInfo;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Pid, ProcessesToUpdate, RefreshKind, System};
 use game_models::config::GlobalConfig;
 use game_models::debug::{BuildInfo, DebugOverlayState, DebugSnapshot, SysStats};
-use game_models::states::AppState;
+use game_models::states::{is_state_in_game, AppState, InGameStates};
 use game_models::v_ram_detection::{detect_v_ram_best_effort, fmt_bytes};
 
 pub struct DebugLogicComponent;
@@ -17,8 +17,9 @@ impl Plugin for DebugLogicComponent {
             .init_resource::<DebugOverlayState>()
             .init_resource::<SysStats>();
 
+        // TODO: make this to Preload later
         app.add_systems(
-            OnEnter(AppState::Preload), internal_sys_info.run_if(in_state(AppState::Preload))
+            OnEnter(AppState::InGame(InGameStates::CharacterMenu)), internal_sys_info
         );
 
         app.add_systems(Update, poll_sys_info);
@@ -30,7 +31,7 @@ impl Plugin for DebugLogicComponent {
                             snap_cpu_brand
                         )
                             .chain()
-                            .run_if(in_state(AppState::Preload)));
+                            .run_if(is_state_in_game));
     }
 
 }

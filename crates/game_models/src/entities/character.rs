@@ -22,6 +22,32 @@ pub struct Character {
     pub world_stats: CharacterWorldStats,
 }
 
+impl Character {
+
+    pub fn from_entity_base_information(base_info: EntityBaseInformation) -> Self {
+        Self {
+            id: None,
+            base_info: Some(base_info),
+            ..default()
+        }
+    }
+
+}
+
+impl Default for Character {
+    fn default() -> Self {
+        Self {
+            id: None,
+            base_info: None,
+            base_attributes: Default::default(),
+            damage_attributes: Default::default(),
+            skill_attributes: Default::default(),
+            current_stats: Default::default(),
+            world_stats: Default::default(),
+        }
+    }
+}
+
 /// Contains the character's current in-game stats,
 /// such as health, attack, and speed, which may change during gameplay.
 #[derive(Component, Reflect, Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
