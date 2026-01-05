@@ -1,0 +1,23 @@
+{
+  "localized": "characters::ignara",
+  "name": "Ignara",
+  "model_path": "models/characters/ignara.glb",
+  "animations": [
+    {
+      "key": "idle",
+      "index": 1
+    },
+    {
+      "key": "idle-2",
+      "index": 4
+    },
+    {
+      "key": "walk",
+      "index": 2
+    },
+    {
+      "key": "run",
+      "index": 3
+    }
+  ]
+}

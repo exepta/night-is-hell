@@ -9,19 +9,17 @@ pub fn setup_test_scene(
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 75.0,
-        affects_lightmapped_meshes: false,
+        brightness: 200.0,
+        ..default()
     });
 
     commands.spawn((
-        PointLight {
-            intensity: 12000.0,
-            range: 30.0,
-            color: Color::srgb(1.0, 0.95, 0.85),
-            shadows_enabled: false,
+        DirectionalLight {
+            illuminance: 500.0,
+            shadows_enabled: true,
             ..default()
         },
-        Transform::from_xyz(6.0, 10.0, 6.0),
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.6, 0.8, 0.0)),
     ));
 
     commands.spawn((
