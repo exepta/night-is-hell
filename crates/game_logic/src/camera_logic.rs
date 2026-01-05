@@ -1,21 +1,18 @@
 use bevy::camera::visibility::RenderLayers;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
-use bevy::pbr::MeshMaterial3d;
 use game_models::camera::OrbitCamera;
-use game_models::entities::player::Player;
+use game_models::entities::character::CharacterDisplay;
 
 pub fn setup_test_scene(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
         brightness: 75.0,
         affects_lightmapped_meshes: false,
     });
-    spawn_test_player_cube(&mut commands, &mut meshes, &mut materials);
+
     commands.spawn((
         PointLight {
             intensity: 12000.0,
@@ -50,31 +47,13 @@ pub fn setup_test_scene(
     ));
 }
 
-//TODO: Replace this temporary test player cube with the actual player spawn pipeline.
-fn spawn_test_player_cube(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
-) {
-    commands.spawn((
-        Mesh3d(meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.3, 0.6, 0.9),
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-        RenderLayers::from_layers(&[0, 1, 2]),
-        Player,
-    ));
-}
-
 pub fn orbit_camera_controls(
     mut motion_events: MessageReader<MouseMotion>,
     mut wheel_events: MessageReader<MouseWheel>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     time: Res<Time>,
     mut cameras: Query<(&mut OrbitCamera, &mut Transform), With<Camera>>,
-    targets: Query<&Transform, (With<Player>, Without<Camera>)>,
+    targets: Query<&Transform, (With<CharacterDisplay>, Without<Camera>)>,
 ) {
     let target = match targets.single() {
         Ok(target) => target,

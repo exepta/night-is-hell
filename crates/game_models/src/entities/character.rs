@@ -2,6 +2,9 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::entities::EntityBaseInformation;
 
+#[derive(Component)]
+pub struct CharacterDisplay;
+
 /// The character. Is not in the world! Look at `Player` for more information.
 #[derive(Component, Reflect, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[reflect(Component)]

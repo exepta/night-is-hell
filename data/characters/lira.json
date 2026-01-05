@@ -1,7 +1,7 @@
 {
   "localized": "characters::lira",
   "name": "Lira",
-  "model_path": "models/characters/lira",
+  "model_path": "models/characters/lira.glb",
   "animations": [
     {
       "key": "idle",
