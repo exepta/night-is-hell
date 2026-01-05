@@ -3,6 +3,7 @@
     pbr_functions::alpha_discard,
     pbr_fragment::pbr_input_from_standard_material,
     decal::clustered::apply_decal_base_color,
+    mesh_view_bindings::lights,
 }
 
 #ifdef PREPASS_PIPELINE
@@ -14,7 +15,7 @@
 #import bevy_pbr::{
     forward_io::{VertexOutput, FragmentOutput},
     pbr_functions,
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+    pbr_functions::main_pass_post_lighting_processing,
     pbr_types::STANDARD_MATERIAL_FLAGS_UNLIT_BIT,
 }
 #endif
@@ -36,7 +37,7 @@
 /* ────────────────────────────────────────────────────────────── */
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(100)
-var<uniform> hsr_params: vec4<f32>;
+var<uniform> hsr_params: vec4<f32>; // x=threshold, y=softness, z=rim_power, w=rim_strength
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(101)
 var<uniform> hsr_rim_color: vec4<f32>;
@@ -46,19 +47,53 @@ var<uniform> hsr_shadow_tint: vec4<f32>;
 
 /* ────────────────────────────────────────────────────────────── */
 
-fn apply_hsr_toon(pbr_input: pbr_types::PbrInput, color: vec4<f32>) -> vec4<f32> {
-    let luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-    let t = hsr_params.x;
-    let s = hsr_params.y;
-
-    let ramp = smoothstep(t - s, t + s, luminance);
-    var toon_color = mix(color.rgb * hsr_shadow_tint.rgb, color.rgb, ramp);
+fn apply_hsr_rim(pbr_input: pbr_types::PbrInput, rgb: vec3<f32>) -> vec3<f32> {
     let ndv = max(dot(pbr_input.N, pbr_input.V), 0.0);
     let rim = pow(1.0 - ndv, hsr_params.z) * hsr_params.w;
-    toon_color += hsr_rim_color.rgb * rim;
+    return rgb + (hsr_rim_color.rgb * rim);
+}
 
-    return vec4(toon_color, color.a);
+fn toon_direct_lighting(pbr_input: pbr_types::PbrInput) -> vec4<f32> {
+    let base = pbr_input.material.base_color;
+
+    // --- TUNING (musst du an deine Szene anpassen) ---
+    // Bevy-Lights sind HDR / physikalisch skaliert -> ohne Scale clippt alles.
+    let AMBIENT_SCALE: f32 = 0.06;
+    let DIR_SCALE: f32 = 0.00006;
+    // -------------------------------------------------
+
+    let ambient = lights.ambient_color.rgb * AMBIENT_SCALE;
+
+    var dir_rgb = vec3<f32>(0.0);
+    var L = vec3<f32>(0.0, 1.0, 0.0);
+
+    if (lights.n_directional_lights > 0u) {
+        let sun = lights.directional_lights[0];
+        // In Bevy kann das schon "stark" sein (HDR). Daher DIR_SCALE.
+        dir_rgb = sun.color.rgb * DIR_SCALE;
+        L = normalize(sun.direction_to_light);
+    }
+
+    let ndotl = max(dot(pbr_input.N, L), 0.0);
+
+    // Toon Ramp (x=threshold, y=softness)
+    let t = hsr_params.x;
+    let s = hsr_params.y;
+    let ramp = smoothstep(t - s, t + s, ndotl);
+
+    // Schattenfarbe -> weiß
+    let shade = mix(hsr_shadow_tint.rgb, vec3<f32>(0.92), ramp);
+
+    // Diffuse only (HSR Schritt 1)
+    var lit = base.rgb * (ambient + dir_rgb * ndotl * shade);
+
+    // Rim (additiv) – ok, aber kann auch clippen, daher optional clamp danach
+    lit = apply_hsr_rim(pbr_input, lit);
+
+    // Sicherheit: verhindert extremes Clippen, bevor Tonemapping kommt
+    lit = clamp(lit, vec3<f32>(0.0), vec3<f32>(50.0));
+
+    return vec4<f32>(lit, base.a);
 }
 
 @fragment
@@ -89,9 +124,11 @@ fn fragment(
 
     var pbr_input = pbr_input_from_standard_material(in, is_front);
 
+    // Alpha discard (Cutout)
     pbr_input.material.base_color =
         alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
+    // Clustered decals
     pbr_input.material.base_color = apply_decal_base_color(
         in.world_position.xyz,
         in.position.xy,
@@ -99,17 +136,19 @@ fn fragment(
     );
 
 #ifdef PREPASS_PIPELINE
+    // Deferred: hier machen wir keinen post-light Toon (das geht so nicht sauber).
+    // Du kannst später "pre-light" quantization in den GBuffer schreiben.
     let out = deferred_output(in, pbr_input);
 #else
     var out: FragmentOutput;
 
     if (pbr_input.material.flags & STANDARD_MATERIAL_FLAGS_UNLIT_BIT) == 0u {
-        out.color = apply_pbr_lighting(pbr_input);
+        out.color = toon_direct_lighting(pbr_input);
     } else {
         out.color = pbr_input.material.base_color;
     }
 
-    out.color = apply_hsr_toon(pbr_input, out.color);
+    // Bevy Post-Processing / fog / tone mapping etc.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
 #endif
 

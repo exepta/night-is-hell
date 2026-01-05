@@ -9,13 +9,13 @@ pub fn setup_test_scene(
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 200.0,
+        brightness: 40.0,
         ..default()
     });
 
     commands.spawn((
         DirectionalLight {
-            illuminance: 500.0,
+            illuminance: 10_000.0,
             shadows_enabled: true,
             ..default()
         },
