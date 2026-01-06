@@ -9,7 +9,7 @@ pub fn setup_test_scene(
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 40.0,
+        brightness: 60.0,
         ..default()
     });
 
