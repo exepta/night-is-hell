@@ -87,10 +87,10 @@ pub struct OutlinePostProcessSettings {
 impl Default for OutlinePostProcessSettings {
     fn default() -> Self {
         Self {
-            thickness: 0.5,
-            depth_threshold: 0.0045,
-            normal_threshold: 0.45,
-            color: Vec4::new(0.05, 0.06, 0.08, 1.0),
+            thickness: 0.525,
+            depth_threshold: 0.0040,
+            normal_threshold: 0.40,
+            color: Vec4::new(0.055, 0.06, 0.08, 1.0),
         }
     }
 }

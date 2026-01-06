@@ -67,34 +67,37 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let texel = 1.0 / dims;
     let step_uv = texel * t;
 
-    var edge = 0.0;
+var edge_strength = 0.0;
 
-    // 8-neighborhood, aber Offset in UV (subpixel)
-    for (var ox: i32 = -1; ox <= 1; ox = ox + 1) {
-        for (var oy: i32 = -1; oy <= 1; oy = oy + 1) {
-            if (ox == 0 && oy == 0) { continue; }
+for (var ox: i32 = -1; ox <= 1; ox = ox + 1) {
+    for (var oy: i32 = -1; oy <= 1; oy = oy + 1) {
+        if (ox == 0 && oy == 0) { continue; }
 
-            let sample_uv = uv + vec2<f32>(f32(ox), f32(oy)) * step_uv;
+        let sample_uv = uv + vec2<f32>(f32(ox), f32(oy)) * step_uv;
 
-            // UV -> Pixel (und clamp)
-            let sp = vec2<i32>(
-                i32(sample_uv.x * dims.x),
-                i32(sample_uv.y * dims.y),
-            );
-            let spc = clamp_px(sp, px_max);
+        let sp = vec2<i32>(
+            i32(sample_uv.x * dims.x),
+            i32(sample_uv.y * dims.y),
+        );
+        let spc = clamp_px(sp, px_max);
 
-            let d = sample_depth_px(spc);
-            let n = sample_normal_px(spc);
+        let d = sample_depth_px(spc);
+        let n = sample_normal_px(spc);
 
-            let depth_diff = abs(d - center_depth);
-            let normal_diff = length(n - center_normal);
+        let depth_diff = abs(d - center_depth);
+        let normal_diff = length(n - center_normal);
 
-            if (depth_diff > settings.depth_threshold || normal_diff > settings.normal_threshold) {
-                edge = 1.0;
-            }
-        }
+        // --- Stärke statt bool ---
+        let depth_s = smoothstep(settings.depth_threshold, settings.depth_threshold * 2.0, depth_diff);
+        let norm_s  = smoothstep(settings.normal_threshold, settings.normal_threshold * 1.7, normal_diff);
+
+        edge_strength = max(edge_strength, max(depth_s, norm_s));
     }
+}
 
-    let base = textureSample(scene_tex, scene_samp, uv);
-    return mix(base, settings.color, edge);
+// weiche Kante (Anti-Alias-Look)
+let edge = smoothstep(0.25, 0.85, edge_strength);
+
+let base = textureSample(scene_tex, scene_samp, uv);
+return mix(base, settings.color, edge);
 }
