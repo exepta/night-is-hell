@@ -50,13 +50,13 @@ impl Default for HsrToonExtension {
     fn default() -> Self {
         Self {
             toon_params: Vec4::new(
-                0.54, // vorher 0.58 → mehr Fläche im Mid-Band
-                0.06,
-                3.6,
+                0.52,
+                0.08,
+                3.2,
                 0.16,
             ),
-            rim_color: Vec4::new(0.85, 0.80, 0.75, 1.0),
-            shadow_tint: Vec4::new(0.78, 0.60, 0.55, 1.0)
+            shadow_tint: Vec4::new(0.70, 0.62, 0.62, 1.0),
+            rim_color: Vec4::new(0.55, 0.55, 0.65, 1.0),
         }
     }
 }

@@ -67,37 +67,55 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let texel = 1.0 / dims;
     let step_uv = texel * t;
 
-var edge_strength = 0.0;
+    var edge_strength = 0.0;
 
-for (var ox: i32 = -1; ox <= 1; ox = ox + 1) {
-    for (var oy: i32 = -1; oy <= 1; oy = oy + 1) {
-        if (ox == 0 && oy == 0) { continue; }
+    for (var ox: i32 = -1; ox <= 1; ox = ox + 1) {
+        for (var oy: i32 = -1; oy <= 1; oy = oy + 1) {
+            if (ox == 0 && oy == 0) { continue; }
 
-        let sample_uv = uv + vec2<f32>(f32(ox), f32(oy)) * step_uv;
+            let sample_uv = uv + vec2<f32>(f32(ox), f32(oy)) * step_uv;
 
-        let sp = vec2<i32>(
-            i32(sample_uv.x * dims.x),
-            i32(sample_uv.y * dims.y),
-        );
-        let spc = clamp_px(sp, px_max);
+            let sp = vec2<i32>(
+                i32(sample_uv.x * dims.x),
+                i32(sample_uv.y * dims.y),
+            );
+            let spc = clamp_px(sp, px_max);
 
-        let d = sample_depth_px(spc);
-        let n = sample_normal_px(spc);
+            let d = sample_depth_px(spc);
+            let n = sample_normal_px(spc);
 
-        let depth_diff = abs(d - center_depth);
-        let normal_diff = length(n - center_normal);
+            let depth_diff = abs(d - center_depth);
+            let normal_diff = length(n - center_normal);
 
-        // --- Stärke statt bool ---
-        let depth_s = smoothstep(settings.depth_threshold, settings.depth_threshold * 2.0, depth_diff);
-        let norm_s  = smoothstep(settings.normal_threshold, settings.normal_threshold * 1.7, normal_diff);
+            // Stärke statt bool
+            let depth_s = smoothstep(
+                settings.depth_threshold,
+                settings.depth_threshold * 2.0,
+                depth_diff
+            );
+            let norm_s  = smoothstep(
+                settings.normal_threshold,
+                settings.normal_threshold * 1.7,
+                normal_diff
+            );
 
-        edge_strength = max(edge_strength, max(depth_s, norm_s));
+            edge_strength = max(edge_strength, max(depth_s, norm_s));
+        }
     }
-}
 
-// weiche Kante (Anti-Alias-Look)
-let edge = smoothstep(0.25, 0.85, edge_strength);
+    // (Anti-Alias-Look)
+    let edge = smoothstep(0.25, 0.85, edge_strength);
 
-let base = textureSample(scene_tex, scene_samp, uv);
-return mix(base, settings.color, edge);
+    let base = textureSample(scene_tex, scene_samp, uv);
+
+    // luminance (für light-dependent outline fade)
+    let lum = dot(base.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+
+    // 0.55..0.85
+    let light_fade = 1.0 - smoothstep(0.55, 0.85, lum);
+
+    // final mix factor
+    let a = clamp(edge * light_fade, 0.0, 1.0);
+
+    return mix(base, settings.color, a);
 }
