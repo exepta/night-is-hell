@@ -82,7 +82,7 @@ fn apply_light_wrap(
 
     // reduce wrap when facing the light strongly
     let ndotl = max(ndotl_raw, 0.0);
-    let facing = 1.0 - smoothstep(0.25, 0.85, ndotl);
+    let facing = 1.0 - smoothstep(0.15, 0.75, ndotl);
 
     let w = wrap * view_fade * facing * wrap_strength;
 
@@ -182,6 +182,9 @@ fn toon_direct_lighting_zzz(pbr_input: pbr_types::PbrInput, mat_id: f32) -> vec4
     let band_rgb = shadow_rgb * w_shadow + mid_rgb * w_mid + light_rgb * w_light;
 
     var lit = band_rgb * (ambient + dir_rgb * ndotl);
+    let lum = dot(lit, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let mid = smoothstep(0.03, 0.20, lum);      // detect "mid" range
+    lit = mix(lit, lit * 1.18, mid * 0.35);     // gentle lift
 
     // Per-material post shaping:
     // Skin: less contrast, a bit warmer; Hair: more contrast; Cloth: neutral

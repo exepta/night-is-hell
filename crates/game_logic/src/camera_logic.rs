@@ -9,17 +9,38 @@ pub fn setup_test_scene(
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 60.0,
+        brightness: 50.0,
         ..default()
     });
 
     commands.spawn((
         DirectionalLight {
-            illuminance: 10_000.0,
+            illuminance: 1200.0,
+            color: Color::srgb(1.0, 0.98, 0.95),
             shadows_enabled: true,
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.6, 0.8, 0.0)),
+    ));
+
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 250.0,
+            shadows_enabled: false,
+            color: Color::srgb(0.85, 0.90, 1.0),
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.3, -1.6, 0.0)),
+    ));
+
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 300.0,
+            shadows_enabled: false,
+            color: Color::srgb(1.0, 0.95, 0.85),
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.2, 3.14, 0.0)),
     ));
 
     commands.spawn((
