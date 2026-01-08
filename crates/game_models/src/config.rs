@@ -179,6 +179,14 @@ impl InputConfig {
         convert(self.gizmos_boxen.as_str()).unwrap_or_else(|| KeyCode::F9)
     }
 
+    pub fn get_move_up_key(&self) -> KeyCode {
+        convert(self.movement_up.as_str()).unwrap_or_else(|| KeyCode::KeyW)
+    }
+
+    pub fn get_move_down_key(&self) -> KeyCode {
+        convert(self.movement_down.as_str()).unwrap_or_else(|| KeyCode::KeyS)
+    }
+
     pub fn get_move_left_key(&self) -> KeyCode {
         convert(self.movement_left.as_str()).unwrap_or_else(|| KeyCode::KeyA)
     }

@@ -19,7 +19,8 @@ use tracing_subscriber::fmt::writer::BoxMakeWriter;
 use tracing_subscriber::Layer;
 use game_models::config::GlobalConfig;
 use game_models::debug::{BuildInfo, WorldInspectorState};
-use game_models::states::AppState;
+use game_models::entities::EntityBaseInformation;
+use game_models::states::{AppState, InGameStates};
 use crate::manager::ManagerPlugin;
 
 /// Helper struct to insert a start log entry when logging is initialized.
@@ -123,7 +124,17 @@ fn init_bevy_app(app: &mut App, config: &GlobalConfig) {
 #[coverage(off)]
 fn init_app_finish(mut next_state: ResMut<NextState<AppState>>) {
     info!("Finish initializing app...");
-    next_state.set(AppState::Preload);
+    let result = EntityBaseInformation::fetch_all();
+    if let Ok(result_info) = result {
+        info!(
+            "Fetched {} entity base information", result_info.len()
+        );
+    } else {
+        error!(
+            "Failed to fetch entity base information: {}", result.err().unwrap()
+        );
+    }
+    next_state.set(AppState::InGame(InGameStates::CharacterMenu));
 }
 
 /// Creates GPU settings for rendering.
