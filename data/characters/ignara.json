@@ -5,19 +5,27 @@
   "animations": [
     {
       "key": "idle",
-      "index": 1
+      "index": 0
     },
     {
-      "key": "idle-2",
+      "key": "idle-02",
       "index": 4
     },
     {
       "key": "walk",
-      "index": 2
+      "index": 5
     },
     {
-      "key": "run",
+      "key": "sprint",
+      "index": 6
+    },
+    {
+      "key": "slow_walk",
       "index": 3
+    },
+    {
+      "key": "jump",
+      "index": 2
     }
   ]
 }

@@ -13,11 +13,19 @@
     },
     {
       "key": "walk",
-      "index": 2
+      "index": 5
     },
     {
       "key": "run",
+      "index": 7
+    },
+    {
+      "key": "slow_walk",
       "index": 3
+    },
+    {
+      "key": "jump",
+      "index": 2
     }
   ]
 }
