@@ -21,11 +21,8 @@ struct CharacterAnimationSelection {
 
 #[derive(Resource, Default)]
 struct PreloadedAnimationClips {
-    // Für welchen CharacterDisplay gilt das gerade?
     display_entity: Option<Entity>,
-    // glTF Animation-Indices (aus base.animations[].index) in genau der Reihenfolge
     indices: Vec<usize>,
-    // die dazugehörigen Handles
     clips: Vec<Handle<AnimationClip>>,
 }
 
@@ -122,12 +119,10 @@ fn handle_character_roulette_input(
         roulette.index = (roulette.index + len - 1) % len;
     }
 
-    // WICHTIG: recursive despawn, sonst bleiben Children/Player übrig
     for entity in display_query.iter() {
         commands.entity(entity).despawn();
     }
 
-    // Preload-Cache resetten (neuer CharacterDisplay kommt)
     *preload = PreloadedAnimationClips::default();
 
     let character = characters.0[roulette.index].clone();
@@ -143,7 +138,6 @@ fn handle_character_animation_input(
     config: Res<GlobalConfig>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
-    // W/S soll nur durch bereits vorgeladene Clips blättern
     let animation_count = preload.clips.len();
     if animation_count == 0 {
         return;
@@ -172,7 +166,6 @@ fn handle_character_animation_input(
     animation_selection.needs_apply = true;
 }
 
-/// Markiert einen AnimationPlayer als Rig-Player (tiefster Player in der Hierarchie).
 fn mark_rig_player_when_ready(
     mut commands: Commands,
     display_query: Query<Entity, With<CharacterDisplay>>,
@@ -221,8 +214,6 @@ fn mark_rig_player_when_ready(
     commands.entity(rig_player).insert(CharacterRigPlayer);
 }
 
-/// Preload: erzeugt Handle-Liste für alle base.animations und speichert sie in einer Resource.
-/// Das macht noch kein Graph-building, nur Handles + Loaded-Waiting.
 fn preload_character_animation_clips(
     mut preload: ResMut<PreloadedAnimationClips>,
     display_query: Query<(Entity, &Character), With<CharacterDisplay>>,
@@ -234,18 +225,15 @@ fn preload_character_animation_clips(
         return;
     }
 
-    // wenn wir bereits für dieses Display preloaded haben -> nichts tun
     if preload.display_entity == Some(display_entity) && !preload.clips.is_empty() {
         return;
     }
 
-    // (Re)Init preload
     preload.display_entity = Some(display_entity);
     preload.indices.clear();
     preload.clips.clear();
 
     for a in &base.animations {
-        // WICHTIG: bei dir ist es base.animations[].index (glTF Animation index)
         let clip: Handle<AnimationClip> =
             asset_server.load(format!("{}#Animation{}", base.model_path, a.index));
         preload.indices.push(a.index as usize);
@@ -255,7 +243,6 @@ fn preload_character_animation_clips(
     info!("Preloading {} animation clips for {}", preload.clips.len(), base.model_path);
 }
 
-/// Wenn alle vorgeladenen Clips Loaded sind, baue genau einmal den Graph + CachedAnimNodes.
 fn build_graph_cache_when_loaded(
     preload: Res<PreloadedAnimationClips>,
     rig_player_query: Query<Entity, With<CharacterRigPlayer>>,
@@ -268,7 +255,6 @@ fn build_graph_cache_when_loaded(
         return;
     };
 
-    // Wenn schon gecached, nix tun
     if cached_query.get(rig_player_entity).is_ok() {
         return;
     }
@@ -282,7 +268,7 @@ fn build_graph_cache_when_loaded(
     });
 
     if !all_loaded {
-        return; // warten
+        return;
     }
 
     let mut graph = AnimationGraph::new();
@@ -319,7 +305,6 @@ fn apply_character_animation(
     };
 
     let Some(cached) = cached_opt else {
-        // Graph/Nodes noch nicht fertig -> warten
         return;
     };
 
