@@ -4,6 +4,10 @@ use bevy::prelude::*;
 use game_models::camera::OrbitCamera;
 use game_models::entities::character::CharacterDisplay;
 
+const MIN_ZOOM: f32 = 0.8;
+const MAX_ZOOM: f32 = 18.0;
+const ZOOM_SPEED: f32 = 1.2;
+
 pub fn setup_test_scene(
     mut commands: Commands,
 ) {
@@ -97,7 +101,7 @@ pub fn orbit_camera_controls(
         }
 
         if scroll_delta.abs() > f32::EPSILON {
-            orbit.target_radius = (orbit.target_radius - scroll_delta * 0.6).clamp(3.0, 18.0);
+            orbit.target_radius = (orbit.target_radius - scroll_delta * ZOOM_SPEED).clamp(MIN_ZOOM, MAX_ZOOM);
         }
 
         let dt = time.delta_secs();

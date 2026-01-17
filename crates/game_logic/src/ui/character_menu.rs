@@ -20,10 +20,23 @@ struct CharacterAnimationSelection {
 }
 
 #[derive(Resource, Default)]
+struct CharacterMorphSelection {
+    index: usize,
+    needs_apply: bool,
+}
+
+#[derive(Resource, Default)]
 struct PreloadedAnimationClips {
     display_entity: Option<Entity>,
     indices: Vec<usize>,
     clips: Vec<Handle<AnimationClip>>,
+}
+
+#[derive(Resource, Default)]
+struct CharacterMorphTargetsCache {
+    display_entity: Option<Entity>,
+    targets: Vec<Entity>,
+    target_count: usize,
 }
 
 #[derive(Component)]
@@ -38,18 +51,23 @@ impl Plugin for CharacterMenuLogicComponent {
     fn build(&self, app: &mut App) {
         app.init_resource::<CharacterRoulette>();
         app.init_resource::<CharacterAnimationSelection>();
+        app.init_resource::<CharacterMorphSelection>();
         app.init_resource::<PreloadedAnimationClips>();
+        app.init_resource::<CharacterMorphTargetsCache>();
 
         app.add_systems(
             Update,
             (
                 ensure_character_display,
                 handle_character_roulette_input,
+                cache_character_morph_targets,
                 handle_character_animation_input,
+                handle_character_morph_input,
                 mark_rig_player_when_ready,
                 preload_character_animation_clips,
                 build_graph_cache_when_loaded,
                 apply_character_animation,
+                apply_character_morph_targets,
             )
                 .chain()
                 .run_if(in_state(AppState::InGame(InGameStates::CharacterMenu))),
@@ -61,6 +79,7 @@ fn ensure_character_display(
     mut commands: Commands,
     mut roulette: ResMut<CharacterRoulette>,
     mut animation_selection: ResMut<CharacterAnimationSelection>,
+    mut morph_selection: ResMut<CharacterMorphSelection>,
     characters: Res<Characters>,
     display_query: Query<Entity, With<CharacterDisplay>>,
     asset_server: Res<AssetServer>,
@@ -81,13 +100,17 @@ fn ensure_character_display(
 
     animation_selection.index = 0;
     animation_selection.needs_apply = true;
+    morph_selection.index = 0;
+    morph_selection.needs_apply = true;
 }
 
 fn handle_character_roulette_input(
     mut commands: Commands,
     mut roulette: ResMut<CharacterRoulette>,
     mut animation_selection: ResMut<CharacterAnimationSelection>,
+    mut morph_selection: ResMut<CharacterMorphSelection>,
     mut preload: ResMut<PreloadedAnimationClips>,
+    mut morph_cache: ResMut<CharacterMorphTargetsCache>,
     characters: Res<Characters>,
     config: Res<GlobalConfig>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -124,12 +147,67 @@ fn handle_character_roulette_input(
     }
 
     *preload = PreloadedAnimationClips::default();
+    *morph_cache = CharacterMorphTargetsCache::default();
 
     let character = characters.0[roulette.index].clone();
     spawn_character_display(&mut commands, &asset_server, character);
 
     animation_selection.index = 0;
     animation_selection.needs_apply = true;
+    morph_selection.index = 0;
+    morph_selection.needs_apply = true;
+}
+
+fn cache_character_morph_targets(
+    mut morph_cache: ResMut<CharacterMorphTargetsCache>,
+    display_query: Query<Entity, With<CharacterDisplay>>,
+    children_query: Query<&Children>,
+    morph_query: Query<&MorphWeights>,
+) {
+    let Some(display) = display_query.iter().next() else { return; };
+
+    let needs_refresh = morph_cache.display_entity != Some(display) || morph_cache.targets.is_empty();
+    if !needs_refresh {
+        return;
+    }
+
+    fn walk(
+        e: Entity,
+        children_q: &Query<&Children>,
+        morph_q: &Query<&MorphWeights>,
+        targets: &mut Vec<Entity>,
+        target_count: &mut usize,
+    ) {
+        if let Ok(weights) = morph_q.get(e) {
+            if *target_count == 0 {
+                *target_count = weights.weights().len();
+            }
+            targets.push(e);
+        }
+        if let Ok(children) = children_q.get(e) {
+            for c in children.iter() {
+                walk(c, children_q, morph_q, targets, target_count);
+            }
+        }
+    }
+
+    let mut targets = Vec::new();
+    let mut target_count = 0;
+    walk(
+        display,
+        &children_query,
+        &morph_query,
+        &mut targets,
+        &mut target_count,
+    );
+
+    if targets.is_empty() || target_count == 0 {
+        return;
+    }
+
+    morph_cache.display_entity = Some(display);
+    morph_cache.targets = targets;
+    morph_cache.target_count = target_count;
 }
 
 fn handle_character_animation_input(
@@ -164,6 +242,23 @@ fn handle_character_animation_input(
     }
 
     animation_selection.needs_apply = true;
+}
+
+fn handle_character_morph_input(
+    mut morph_selection: ResMut<CharacterMorphSelection>,
+    morph_cache: Res<CharacterMorphTargetsCache>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if morph_cache.target_count == 0 {
+        return;
+    }
+
+    if !keyboard.just_pressed(KeyCode::KeyQ) {
+        return;
+    }
+
+    morph_selection.index = (morph_selection.index + 1) % morph_cache.target_count;
+    morph_selection.needs_apply = true;
 }
 
 fn mark_rig_player_when_ready(
@@ -320,6 +415,36 @@ fn apply_character_animation(
     player.play(cached.nodes[idx]).repeat();
 
     animation_selection.needs_apply = false;
+}
+
+fn apply_character_morph_targets(
+    mut morph_selection: ResMut<CharacterMorphSelection>,
+    morph_cache: Res<CharacterMorphTargetsCache>,
+    mut morph_query: Query<&mut MorphWeights>,
+) {
+    if !morph_selection.needs_apply {
+        return;
+    }
+    if morph_cache.target_count == 0 {
+        return;
+    }
+
+    let index = morph_selection
+        .index
+        .min(morph_cache.target_count.saturating_sub(1));
+
+    for entity in morph_cache.targets.iter().copied() {
+        let Ok(mut weights) = morph_query.get_mut(entity) else { continue; };
+        let weights = weights.weights_mut();
+        for weight in weights.iter_mut() {
+            *weight = 0.0;
+        }
+        if let Some(weight) = weights.get_mut(index) {
+            *weight = 1.0;
+        }
+    }
+
+    morph_selection.needs_apply = false;
 }
 
 fn spawn_character_display(
