@@ -40,13 +40,18 @@ fn sample_depth_px(px: vec2<i32>) -> f32 {
     return d * 0.25;
 }
 
+fn decode_normal(enc: vec3<f32>) -> vec3<f32> {
+    return normalize(enc * 2.0 - vec3<f32>(1.0));
+}
+
 fn sample_normal_px(px: vec2<i32>) -> vec3<f32> {
     var n = vec3<f32>(0.0);
     n += textureLoad(normal_tex_ms, px, 0).xyz;
     n += textureLoad(normal_tex_ms, px, 1).xyz;
     n += textureLoad(normal_tex_ms, px, 2).xyz;
     n += textureLoad(normal_tex_ms, px, 3).xyz;
-    return n * 0.25;
+    n = n * 0.25;
+    return decode_normal(n);
 }
 
 @fragment
@@ -85,7 +90,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
             let n = sample_normal_px(spc);
 
             let depth_diff = abs(d - center_depth);
-            let normal_diff = length(n - center_normal);
+            let normal_diff = 1.0 - clamp(dot(n, center_normal), 0.0, 1.0);
 
             // Stärke statt bool
             let depth_s = smoothstep(
@@ -93,7 +98,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
                 settings.depth_threshold * 2.0,
                 depth_diff
             );
-            let norm_s  = smoothstep(
+            let norm_s = smoothstep(
                 settings.normal_threshold,
                 settings.normal_threshold * 1.7,
                 normal_diff
@@ -115,7 +120,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let light_fade = 1.0 - smoothstep(0.55, 0.85, lum);
 
     // final mix factor
-    let a = clamp(edge * light_fade, 0.0, 1.0);
+    let a = edge;
 
     return mix(base, settings.color, a);
 }

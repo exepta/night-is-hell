@@ -285,6 +285,7 @@ mod manager {
 
         #[coverage(off)]
         fn build(&self, app: &mut App) {
+            app.insert_resource(DirectionalLightShadowMap { size: 4096 });
             app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
             app.add_plugins(RapierDebugRenderPlugin {
                 enabled: false,

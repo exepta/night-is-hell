@@ -20,7 +20,7 @@ version = "0.17.3"
 default-features = true
 
 [dependencies.bevy_extended_ui]
-version = "1.0.0"
+version = "1.0.1-beta.1"
 
 [dependencies.bevy_extended_ui_macros]
-version = "1.0.0"
+version = "1.0.1-beta.1"

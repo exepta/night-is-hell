@@ -50,13 +50,13 @@ impl Default for HsrToonExtension {
     fn default() -> Self {
         Self {
             toon_params: Vec4::new(
-                0.52,
+                0.48,
+                0.14,
+                3.0,
                 0.08,
-                3.2,
-                0.16,
             ),
             shadow_tint: Vec4::new(0.55, 0.50, 0.48, 1.0),
-            rim_color: Vec4::new(0.55, 0.55, 0.65, 1.0),
+            rim_color:   Vec4::new(0.55, 0.55, 0.65, 1.0),
         }
     }
 }
@@ -92,9 +92,9 @@ pub struct OutlinePostProcessSettings {
 impl Default for OutlinePostProcessSettings {
     fn default() -> Self {
         Self {
-            thickness: 0.6,
-            depth_threshold: 0.0030,
-            normal_threshold: 0.28,
+            thickness: 0.5,
+            depth_threshold: 0.0015,
+            normal_threshold: 0.5,
             color: Vec4::new(0.025, 0.025, 0.05, 1.0),
         }
     }
