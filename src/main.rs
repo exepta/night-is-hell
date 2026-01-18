@@ -272,7 +272,6 @@ fn load_log_env_filter() -> String {
 mod manager {
     use bevy::light::DirectionalLightShadowMap;
     use bevy::prelude::*;
-    use bevy_rapier3d::prelude::*;
     use game_logic::GameLogicPlugin;
     use game_models::config::GlobalConfig;
     use game_models::debug::WorldInspectorState;
@@ -286,16 +285,11 @@ mod manager {
         #[coverage(off)]
         fn build(&self, app: &mut App) {
             app.insert_resource(DirectionalLightShadowMap { size: 4096 });
-            app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
-            app.add_plugins(RapierDebugRenderPlugin {
-                enabled: false,
-                ..default()
-            });
 
             app.add_plugins((GameCorePlugin, GameLogicPlugin, GameUiPlugin));
 
             app.add_systems(Startup, setup_shadow_map);
-            app.add_systems(Update, (toggle_world_inspector, toggle_debug_system));
+            app.add_systems(Update, toggle_world_inspector);
         }
     }
 
@@ -316,7 +310,7 @@ mod manager {
         }
     }
 
-    #[coverage(off)]
+/*    #[coverage(off)]
     pub fn toggle_debug_system(
         mut debug_context: ResMut<DebugRenderContext>,
         keyboard: ResMut<ButtonInput<KeyCode>>,
@@ -326,6 +320,6 @@ mod manager {
         if keyboard.just_pressed(key) {
             debug_context.enabled = !debug_context.enabled
         }
-    }
+    }*/
 
 }

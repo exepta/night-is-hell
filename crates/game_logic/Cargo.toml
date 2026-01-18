@@ -23,7 +23,7 @@ path = "../game_models"
 # graphics and systems. If you change the Version, make sure that you change it
 # in all crates of the project!
 [dependencies.bevy]
-version = "0.17.3"
+version = "0.18.0"
 default-features = true
 
 # Fetch system information for windows, linux and Mac

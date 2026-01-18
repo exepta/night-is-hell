@@ -11,12 +11,6 @@ const ZOOM_SPEED: f32 = 1.2;
 pub fn setup_test_scene(
     mut commands: Commands,
 ) {
-    commands.insert_resource(AmbientLight {
-        color: Color::WHITE,
-        brightness: 3.0,
-        ..default()
-    });
-
     commands.spawn((
         DirectionalLight {
             illuminance: 1200.0,
@@ -62,8 +56,9 @@ pub fn setup_test_scene(
             position_smoothness: 14.0,
             follow_offset: Vec3::new(0.0, 1.2, 0.0),
         },
-        Camera {
-            order: 0,
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 3.0,
             ..default()
         },
         RenderLayers::from_layers(&[0]),

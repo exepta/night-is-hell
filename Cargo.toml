@@ -60,18 +60,13 @@ path = "crates/game_logic"
 # graphics and systems. If you change the Version, make sure that you change it
 # in all crates of the project!
 [dependencies.bevy]
-version = "0.17.3"
+version = "0.18.0"
 features = ["file_watcher", "webp", "jpeg", "png"]
 default-features = true
 
-# Bevy Rapier3D for initialized game physics
-[dependencies.bevy_rapier3d]
-version = "0.32.0"
-features = ["debug-render-3d", "simd-nightly", "default"]
-
 # Bevy Inspector UI for debug things
 [dependencies.bevy-inspector-egui]
-version = "0.35.0"
+version = "0.36.0"
 
 # Tracing Subscriber for look up traces in logs and for print them
 # into a log file

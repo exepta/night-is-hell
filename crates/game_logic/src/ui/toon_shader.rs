@@ -304,32 +304,38 @@ fn init_outline_post_pipeline(
     fullscreen_shader: Res<FullscreenShader>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    // BindGroupLayout:
     // 0 scene color
-    // 1 depth prepass (color texture)
-    // 2 normal prepass (color texture)
+    // 1 depth prepass (MSAA)
+    // 2 normal prepass (MSAA)
     // 3 sampler
     // 4 uniform
-    let layout = render_device.create_bind_group_layout(
-        "outline_postprocess_bind_group_layout",
-        &BindGroupLayoutEntries::sequential(
-            ShaderStages::FRAGMENT,
-            (
-                texture_2d(TextureSampleType::Float { filterable: true }),              // scene color (resolved)
-                texture_2d_multisampled(TextureSampleType::Float { filterable: false }),// depth MSAA
-                texture_2d_multisampled(TextureSampleType::Float { filterable: false }),// normal MSAA
-                sampler(SamplerBindingType::Filtering),
-                uniform_buffer::<OutlinePostProcessSettings>(true),
-            ),
+    let layout_entries = BindGroupLayoutEntries::sequential(
+        ShaderStages::FRAGMENT,
+        (
+            texture_2d(TextureSampleType::Float { filterable: true }),
+            texture_2d_multisampled(TextureSampleType::Float { filterable: false }),
+            texture_2d_multisampled(TextureSampleType::Float { filterable: false }),
+            sampler(SamplerBindingType::Filtering),
+            uniform_buffer::<OutlinePostProcessSettings>(true),
         ),
     );
+
+    // ✅ Descriptor
+    let layout_desc = BindGroupLayoutDescriptor {
+        label: "outline_postprocess_bind_group_layout".into(),
+        entries: layout_entries.to_vec(),
+    };
+
+    //GPU-Layout (für create_bind_group)
+    let layout = render_device.create_bind_group_layout(&*layout_desc.label, &layout_desc.entries);
 
     let sampler = render_device.create_sampler(&SamplerDescriptor::default());
     let shader = asset_server.load(OUTLINE_POST_SHADER);
 
     let pipeline_descriptor = RenderPipelineDescriptor {
         label: Some("outline_postprocess_pipeline".into()),
-        layout: vec![layout.clone()],
+        //0.18: descriptors
+        layout: vec![layout_desc],
         vertex: fullscreen_shader.to_vertex_state(),
         fragment: Some(FragmentState {
             shader,
@@ -351,7 +357,7 @@ fn init_outline_post_pipeline(
     let pipeline_id = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
 
     commands.insert_resource(OutlinePostProcessPipeline {
-        layout,
+        layout,      //BindGroupLayout
         sampler,
         pipeline_id,
     });
