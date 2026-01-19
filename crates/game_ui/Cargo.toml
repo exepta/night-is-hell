@@ -19,6 +19,5 @@ path = "src/lib.rs"
 version = "0.18"
 default-features = true
 
-[dependencies.bevy_extended_ui]
-git = "https://github.com/exepta/bevy_extended_ui"
-branch = "main"
+[dependencies]
+bevy_extended_ui = "1.2.0"
