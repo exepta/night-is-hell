@@ -24,7 +24,7 @@ use bevy::render::{
     view::ViewTarget,
     RenderApp, RenderStartup,
 };
-use bevy::render::render_resource::binding_types::texture_2d_multisampled;
+use bevy::render::render_resource::binding_types::{texture_2d_multisampled, texture_depth_2d_multisampled};
 use game_models::entities::character::CharacterDisplay;
 use game_models::states::{AppState, InGameStates};
 
@@ -313,7 +313,7 @@ fn init_outline_post_pipeline(
         ShaderStages::FRAGMENT,
         (
             texture_2d(TextureSampleType::Float { filterable: true }),
-            texture_2d_multisampled(TextureSampleType::Float { filterable: false }),
+            texture_depth_2d_multisampled(),
             texture_2d_multisampled(TextureSampleType::Float { filterable: false }),
             sampler(SamplerBindingType::Filtering),
             uniform_buffer::<OutlinePostProcessSettings>(true),

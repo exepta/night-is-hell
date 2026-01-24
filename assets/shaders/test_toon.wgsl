@@ -1,7 +1,7 @@
 #import bevy_pbr::{
     pbr_types,
-    pbr_functions::alpha_discard,
     pbr_fragment::pbr_input_from_standard_material,
+    pbr_functions::alpha_discard,
     decal::clustered::apply_decals,
     mesh_view_bindings::lights,
 }
@@ -15,7 +15,6 @@
 #import bevy_pbr::{
     forward_io::{VertexOutput, FragmentOutput},
     pbr_functions,
-    pbr_functions::main_pass_post_lighting_processing,
     pbr_types::STANDARD_MATERIAL_FLAGS_UNLIT_BIT,
 }
 #endif
@@ -43,10 +42,6 @@ var<uniform> hsr_shadow_tint: vec4<f32>;
 
 fn saturate(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
 
-fn smooth_band(x: f32, edge0: f32, edge1: f32) -> f32 {
-    return smoothstep(edge0, edge1, x);
-}
-
 fn get_mat_id(in: VertexOutput) -> f32 {
 #ifdef VERTEX_COLORS
     return clamp(in.color.r, 0.0, 1.0);
@@ -55,95 +50,112 @@ fn get_mat_id(in: VertexOutput) -> f32 {
 #endif
 }
 
+fn get_shadow_shift(in: VertexOutput) -> f32 {
+#ifdef VERTEX_COLORS
+    return clamp(in.color.g, 0.0, 1.0);
+#else
+    return 0.5;
+#endif
+}
+
+fn get_spec_mask(in: VertexOutput) -> f32 {
+#ifdef VERTEX_COLORS
+    return clamp(in.color.b, 0.0, 1.0);
+#else
+    return 1.0;
+#endif
+}
+
+fn face_normal_from_world_pos(world_pos: vec3<f32>, is_front: bool) -> vec3<f32> {
+    let dx = dpdx(world_pos);
+    let dy = dpdy(world_pos);
+    var n = normalize(cross(dx, dy));
+    if (!is_front) { n = -n; }
+    return n;
+}
+
+fn seam_aware_ramp_normal(n_smooth: vec3<f32>, n_face: vec3<f32>) -> vec3<f32> {
+    let d = length(n_smooth - n_face);
+    let t0 = 0.18;
+    let t1 = 0.55;
+    let seam = smoothstep(t0, t1, d) * 0.85;
+    return normalize(mix(n_smooth, n_face, seam));
+}
+
+fn rim_term(N: vec3<f32>, V: vec3<f32>, power: f32) -> f32 {
+    let ndv = saturate(dot(normalize(N), normalize(V)));
+    return pow(1.0 - ndv, max(power, 0.001));
+}
+
 fn apply_rim(pbr_input: pbr_types::PbrInput, rgb: vec3<f32>, rim_mul: f32) -> vec3<f32> {
-    let ndv = saturate(dot(pbr_input.N, pbr_input.V));
-    let rim_raw = pow(1.0 - ndv, max(hsr_params.z, 0.001));
-    let rim = rim_raw * hsr_params.w * rim_mul;
-    return rgb + (hsr_rim_color.rgb * rim);
+    let r = rim_term(pbr_input.N, pbr_input.V, hsr_params.z);
+    let rim = r * hsr_params.w * rim_mul;
+    return rgb + hsr_rim_color.rgb * rim;
 }
 
-fn apply_light_wrap(
-    rgb: vec3<f32>,
-    N: vec3<f32>,
-    V: vec3<f32>,
-    L: vec3<f32>,
-    wrap_width: f32,
-    wrap_strength: f32,
-) -> vec3<f32> {
-    let ndotl_raw = dot(N, L);
-    let ndotv = saturate(dot(N, V));
-
-    let wrap = smoothstep(-wrap_width, 0.0, ndotl_raw);
-    let view_fade = 1.0 - ndotv;
-
-    let ndotl = max(ndotl_raw, 0.0);
-    let facing = 1.0 - smoothstep(0.2, 0.85, ndotl);
-
-    let w = wrap * view_fade * facing * wrap_strength;
-    return rgb * (1.0 + w * 0.35);
+fn toon_band(x: f32, edge: f32, width: f32) -> f32 {
+    return smoothstep(edge - width, edge + width, x);
 }
 
-fn toon_specular(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, mat_id: f32) -> f32 {
+fn toon_specular_masked(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, mat_id: f32, spec_mask: f32) -> f32 {
     let H = normalize(V + L);
-    let ndoth = saturate(dot(N, H));
+    let ndh = saturate(dot(normalize(N), H));
 
     let w_skin  = 1.0 - smoothstep(0.2, 0.35, mat_id);
     let w_hair  = smoothstep(0.65, 0.85, mat_id);
     let w_cloth = clamp(1.0 - w_skin - w_hair, 0.0, 1.0);
 
-    let spec_pow = 28.0 * w_skin + 70.0 * w_cloth + 120.0 * w_hair;
-    let spec_raw = pow(ndoth, spec_pow);
+    let pow_skin = 40.0;
+    let pow_cloth = 90.0;
+    let pow_hair = 160.0;
 
-    let th = 0.30 * w_skin + 0.24 * w_cloth + 0.20 * w_hair;
-    let soft = 0.065;
-    return smoothstep(th - soft, th + soft, spec_raw);
+    let p = pow_skin * w_skin + pow_cloth * w_cloth + pow_hair * w_hair;
+    let raw = pow(ndh, p);
+
+    let th = (0.28 * w_skin + 0.24 * w_cloth + 0.20 * w_hair);
+    let soft = 0.05;
+
+    let shaped = smoothstep(th - soft, th + soft, raw);
+    return shaped * saturate(mix(0.25, 1.25, spec_mask));
 }
 
-fn face_normal_from_world_pos(world_pos: vec3<f32>, is_front: bool) -> vec3<f32> {
-    let dpdx_p = dpdx(world_pos);
-    let dpdy_p = dpdy(world_pos);
-    var n = normalize(cross(dpdx_p, dpdy_p));
-    if (!is_front) { n = -n; }
-    return n;
+fn hair_band_highlight(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, mat_id: f32, spec_mask: f32) -> f32 {
+    let w_hair = smoothstep(0.65, 0.85, mat_id);
+    let H = normalize(V + L);
+    let ndh = saturate(dot(normalize(N), H));
+
+    let band = smoothstep(0.90, 0.985, pow(ndh, 64.0));
+    let m = w_hair * saturate(spec_mask);
+    return band * m;
 }
 
-// Adaptive softness boost based on ndotl gradients.
-fn adaptive_softness(softness: f32, nd: f32) -> f32 {
-    let dx = abs(dpdx(nd));
-    let dy = abs(dpdy(nd));
-    let grad = dx + dy;
-
-    let scale = 7.0;       // 5..10
-    let max_boost = 0.08;  // 0.04..0.12
-
-    let k = clamp(grad * scale, 0.0, 1.0);
-    return max(softness + k * max_boost, 0.001);
+fn endfield_tonemap(rgb: vec3<f32>) -> vec3<f32> {
+    let x = max(rgb, vec3<f32>(0.0));
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    let y = (x * (a * x + vec3<f32>(b))) / (x * (c * x + vec3<f32>(d)) + vec3<f32>(e));
+    return saturate_vec3(y);
 }
 
-/*
-    SEAM-AWARE RAMP NORMAL:
-
-    - Use smooth normal for most of the surface (removes faceting on hair etc.)
-    - Blend towards face-normal ONLY where smooth vs face diverge a lot
-      (these are exactly the places that cause "stripes" / seams in toon ramps)
-*/
-fn seam_aware_ramp_normal(N_smooth: vec3<f32>, N_face: vec3<f32>) -> vec3<f32> {
-    // difference measure (0..~2)
-    let d = length(N_smooth - N_face);
-
-    // thresholds: where to start/finish blending to face normal
-    // lower -> more aggressive (less stripes, more faceting)
-    let t0 = 0.18;
-    let t1 = 0.55;
-
-    // strength cap (0..1)
-    let strength = 0.85;
-
-    let seam = smoothstep(t0, t1, d) * strength;
-    return normalize(mix(N_smooth, N_face, seam));
+fn saturate_vec3(v: vec3<f32>) -> vec3<f32> {
+    return clamp(v, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-fn toon_direct_lighting(in: VertexOutput, pbr_input: pbr_types::PbrInput, mat_id: f32, is_front: bool) -> vec4<f32> {
+fn gamma_encode(rgb: vec3<f32>) -> vec3<f32> {
+    return pow(max(rgb, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.2));
+}
+
+fn toon_direct_lighting(
+    in: VertexOutput,
+    pbr_input: pbr_types::PbrInput,
+    mat_id: f32,
+    shadow_shift: f32,
+    spec_mask: f32,
+    is_front: bool
+) -> vec4<f32> {
     let base = pbr_input.material.base_color;
 
     let w_skin  = 1.0 - smoothstep(0.2, 0.35, mat_id);
@@ -151,18 +163,9 @@ fn toon_direct_lighting(in: VertexOutput, pbr_input: pbr_types::PbrInput, mat_id
     let w_cloth = clamp(1.0 - w_skin - w_hair, 0.0, 1.0);
 
     let N_face = face_normal_from_world_pos(in.world_position.xyz, is_front);
-
-    // Smooth normal: use pbr_input.N (includes normal map). This is what looks "nice" on hair.
-    // If your normal maps are heavy and cause noise, we tame it below with seam-aware blending + adaptive softness.
     let N_smooth = normalize(pbr_input.N);
-
-    // Our ramp normal: mostly smooth, only face-normal near seams/problems
     var N_ramp = seam_aware_ramp_normal(N_smooth, N_face);
-
-    // Optional: keep ramp even more stable by slightly biasing toward face on skin only
-    // (skin is where seams are most visible; hair should stay smooth)
-    let skin_seam_boost = 0.20 * w_skin; // 0..0.20
-    N_ramp = normalize(mix(N_ramp, N_face, skin_seam_boost));
+    N_ramp = normalize(mix(N_ramp, N_face, 0.20 * w_skin));
 
     var dir_acc = vec3<f32>(0.0);
     var key_ndotl = 0.0;
@@ -180,72 +183,70 @@ fn toon_direct_lighting(in: VertexOutput, pbr_input: pbr_types::PbrInput, mat_id
         if (i == 0u) { L_key = L; }
     }
 
-    let ambient = lights.ambient_color.rgb * 0.08;
-    let dir = dir_acc * 0.65;
-    let light_color = clamp(ambient + dir, vec3<f32>(0.0), vec3<f32>(1.35));
+    let ambient = lights.ambient_color.rgb * 0.12;
+    let dir = dir_acc * 0.80;
+    let light_color = clamp(ambient + dir, vec3<f32>(0.0), vec3<f32>(2.0));
 
-    let wrap = 0.18 + w_skin * 0.10 + w_hair * (-0.05);
-    let ndotl_wrapped = saturate((key_ndotl + wrap) / (1.0 + wrap));
+    let wrap = 0.16 + w_skin * 0.08 + w_hair * (-0.05);
+    let nd = saturate((key_ndotl + wrap) / (1.0 + wrap));
 
-    let pivot = hsr_params.x + w_skin * (-0.02) + w_hair * (0.02);
-    let softness_base = max(hsr_params.y, 0.001) * (1.0 + w_skin * 0.25 + w_hair * (-0.35));
+    let pivot_base = hsr_params.x + w_skin * (-0.03) + w_hair * (0.02);
+    let pivot = pivot_base + (shadow_shift - 0.5) * 0.10;
 
-    // Adaptive softness to hide residual banding
-    let softness = adaptive_softness(softness_base, ndotl_wrapped);
+    let softness = max(hsr_params.y, 0.001) * (0.75 + w_skin * 0.30 + w_hair * (-0.35));
 
-    let s0 = smooth_band(ndotl_wrapped, pivot - softness, pivot);
-    let s1 = smooth_band(ndotl_wrapped, pivot, pivot + softness);
+    let e0 = toon_band(nd, pivot - 0.18, softness * 0.55);
+    let e1 = toon_band(nd, pivot,        softness);
+    let e2 = toon_band(nd, pivot + 0.18, softness * 0.85);
 
-    let w_shadow = 1.0 - s0;
-    let w_mid    = s0 * (1.0 - s1);
-    let w_light  = s1;
+    let w_shadow = 1.0 - e0;
+    let w_mid    = e0 * (1.0 - e2);
+    let w_light  = e2;
 
-    let skin_shadow_tint  = vec3<f32>(0.78, 0.62, 0.56);
-    let hair_shadow_tint  = vec3<f32>(0.55, 0.60, 0.80);
-    let cloth_shadow_tint = hsr_shadow_tint.rgb;
+    let tint_shadow_skin  = vec3<f32>(0.70, 0.58, 0.56);
+    let tint_shadow_hair  = vec3<f32>(0.52, 0.58, 0.78);
+    let tint_shadow_cloth = hsr_shadow_tint.rgb;
 
     let shadow_tint =
-        cloth_shadow_tint * w_cloth +
-        skin_shadow_tint  * w_skin  +
-        hair_shadow_tint  * w_hair;
+        tint_shadow_cloth * w_cloth +
+        tint_shadow_skin  * w_skin  +
+        tint_shadow_hair  * w_hair;
 
-    let skin_light_mul  = vec3<f32>(1.02, 1.01, 1.00);
-    let cloth_light_mul = vec3<f32>(1.06, 1.04, 1.01);
-    let hair_light_mul  = vec3<f32>(1.08, 1.06, 1.02);
+    let light_mul_skin  = vec3<f32>(1.03, 1.02, 1.00);
+    let light_mul_cloth = vec3<f32>(1.08, 1.05, 1.01);
+    let light_mul_hair  = vec3<f32>(1.10, 1.07, 1.02);
 
     let light_mul =
-        cloth_light_mul * w_cloth +
-        skin_light_mul  * w_skin  +
-        hair_light_mul  * w_hair;
+        light_mul_cloth * w_cloth +
+        light_mul_skin  * w_skin  +
+        light_mul_hair  * w_hair;
 
-    let shadow_rgb = base.rgb * shadow_tint;
-    let mid_rgb    = base.rgb;
-    let light_rgb  = base.rgb * light_mul;
+    let rgb_shadow = base.rgb * shadow_tint;
+    let rgb_mid    = base.rgb;
+    let rgb_light  = base.rgb * light_mul;
 
-    let band_rgb = shadow_rgb * w_shadow + mid_rgb * w_mid + light_rgb * w_light;
+    var rgb = rgb_shadow * w_shadow + rgb_mid * w_mid + rgb_light * w_light;
+    rgb *= light_color;
 
-    var lit = band_rgb * light_color;
+    let spec = toon_specular_masked(pbr_input.N, pbr_input.V, L_key, mat_id, spec_mask);
+    let spec_intensity = (0.02 * w_skin + 0.08 * w_cloth + 0.22 * w_hair);
+    rgb += spec * spec_intensity;
 
-    let wrap_width = 0.35 + w_skin * 0.06 + w_hair * (-0.03);
-    let wrap_strength = 0.12 + w_skin * 0.10 + w_cloth * (-0.05);
-    lit = apply_light_wrap(lit, N_ramp, pbr_input.V, L_key, wrap_width, wrap_strength);
+    let hair_band = hair_band_highlight(pbr_input.N, pbr_input.V, L_key, mat_id, spec_mask);
+    rgb += hair_band * vec3<f32>(0.80, 0.90, 1.00) * 0.35;
 
-    // Spec & rim on full normal (nice detail)
-    let spec = toon_specular(pbr_input.N, pbr_input.V, L_key, mat_id);
-    let spec_intensity = 0.01 * w_skin + 0.08 * w_cloth + 0.18 * w_hair;
-    lit += spec * spec_intensity;
-
-    let rim_mul = 0.65 + w_hair * 0.35 + w_skin * (-0.10);
-    lit = apply_rim(pbr_input, lit, rim_mul);
+    let rim_mul = 0.55 + w_hair * 0.45 + w_skin * (-0.10);
+    rgb = apply_rim(pbr_input, rgb, rim_mul);
 
     let skin_lift = 0.10;
-    lit = mix(lit, lit * (1.0 + skin_lift), w_skin);
+    rgb = mix(rgb, rgb * (1.0 + skin_lift), w_skin);
 
-    let skin_cap = 0.92;
-    lit = mix(lit, min(lit, vec3<f32>(skin_cap)), w_skin * 0.70);
+    rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(20.0));
 
-    lit = clamp(lit, vec3<f32>(0.0), vec3<f32>(20.0));
-    return vec4<f32>(lit, base.a);
+    let tm = endfield_tonemap(rgb * 1.10);
+    let out_rgb = gamma_encode(tm);
+
+    return vec4<f32>(out_rgb, base.a);
 }
 
 @fragment
@@ -275,10 +276,11 @@ fn fragment(
 #endif
 
     let mat_id = get_mat_id(in);
-    var pbr_input = pbr_input_from_standard_material(in, is_front);
+    let shadow_shift = get_shadow_shift(in);
+    let spec_mask = get_spec_mask(in);
 
-    pbr_input.material.base_color =
-        alpha_discard(pbr_input.material, pbr_input.material.base_color);
+    var pbr_input = pbr_input_from_standard_material(in, is_front);
+    pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
 
     apply_decals(&pbr_input);
 
@@ -288,12 +290,12 @@ fn fragment(
     var out: FragmentOutput;
 
     if (pbr_input.material.flags & STANDARD_MATERIAL_FLAGS_UNLIT_BIT) == 0u {
-        out.color = toon_direct_lighting(in, pbr_input, mat_id, is_front);
+        out.color = toon_direct_lighting(in, pbr_input, mat_id, shadow_shift, spec_mask, is_front);
     } else {
         out.color = pbr_input.material.base_color;
     }
 
-    out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+    // Intentionally not calling main_pass_post_lighting_processing here.
 #endif
 
 #ifdef OIT_ENABLED
