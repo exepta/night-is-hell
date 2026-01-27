@@ -41,6 +41,7 @@ var<uniform> hsr_rim_color: vec4<f32>;
 var<uniform> hsr_shadow_tint: vec4<f32>;
 
 fn saturate(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
+fn saturate3(v: vec3<f32>) -> vec3<f32> { return clamp(v, vec3<f32>(0.0), vec3<f32>(1.0)); }
 
 fn get_mat_id(in: VertexOutput) -> f32 {
 #ifdef VERTEX_COLORS
@@ -105,27 +106,33 @@ fn toon_specular_masked(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, mat_id: f32, s
     let w_hair  = smoothstep(0.65, 0.85, mat_id);
     let w_cloth = clamp(1.0 - w_skin - w_hair, 0.0, 1.0);
 
-    let pow_skin = 40.0;
-    let pow_cloth = 90.0;
-    let pow_hair = 160.0;
+    let pow_skin = 34.0;
+    let pow_cloth = 80.0;
+    let pow_hair = 140.0;
 
     let p = pow_skin * w_skin + pow_cloth * w_cloth + pow_hair * w_hair;
     let raw = pow(ndh, p);
 
-    let th = (0.28 * w_skin + 0.24 * w_cloth + 0.20 * w_hair);
-    let soft = 0.05;
+    let th = (0.30 * w_skin + 0.25 * w_cloth + 0.22 * w_hair);
+    let soft = 0.055;
 
     let shaped = smoothstep(th - soft, th + soft, raw);
-    return shaped * saturate(mix(0.25, 1.25, spec_mask));
+    let mask = saturate(mix(0.15, 1.20, spec_mask));
+    return shaped * mask;
 }
 
 fn hair_band_highlight(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, mat_id: f32, spec_mask: f32) -> f32 {
     let w_hair = smoothstep(0.65, 0.85, mat_id);
+
     let H = normalize(V + L);
     let ndh = saturate(dot(normalize(N), H));
 
-    let band = smoothstep(0.90, 0.985, pow(ndh, 64.0));
+    // Slightly wider and softer than typical "anime sharp band"
+    let band = smoothstep(0.84, 0.985, pow(ndh, 36.0));
+
+    // Masked by vertex B so you can paint where the band is allowed
     let m = w_hair * saturate(spec_mask);
+
     return band * m;
 }
 
@@ -137,15 +144,31 @@ fn endfield_tonemap(rgb: vec3<f32>) -> vec3<f32> {
     let d = 0.59;
     let e = 0.14;
     let y = (x * (a * x + vec3<f32>(b))) / (x * (c * x + vec3<f32>(d)) + vec3<f32>(e));
-    return saturate_vec3(y);
-}
-
-fn saturate_vec3(v: vec3<f32>) -> vec3<f32> {
-    return clamp(v, vec3<f32>(0.0), vec3<f32>(1.0));
+    return saturate3(y);
 }
 
 fn gamma_encode(rgb: vec3<f32>) -> vec3<f32> {
     return pow(max(rgb, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.2));
+}
+
+fn soft_skin_sss(N: vec3<f32>, L: vec3<f32>, w_skin: f32) -> vec3<f32> {
+    let ndl = saturate(dot(normalize(N), normalize(L)));
+    let back = smoothstep(0.0, 0.70, 1.0 - ndl);
+    let sss = back * w_skin;
+    let sss_col = vec3<f32>(1.0, 0.80, 0.74);
+    return sss_col * (sss * 0.07);
+}
+
+fn lift_midtones(w_shadow: f32, w_mid: f32, w_light: f32) -> vec3<f32> {
+    // Returns (ws, wm, wl) renormalized with a midtone push.
+    let mid_push = 0.10;
+
+    let ws = saturate(w_shadow - mid_push);
+    let wm = saturate(w_mid + mid_push);
+    let wl = w_light;
+
+    let norm = max(ws + wm + wl, 0.0001);
+    return vec3<f32>(ws / norm, wm / norm, wl / norm);
 }
 
 fn toon_direct_lighting(
@@ -183,37 +206,41 @@ fn toon_direct_lighting(
         if (i == 0u) { L_key = L; }
     }
 
-    let ambient = lights.ambient_color.rgb * 0.12;
-    let dir = dir_acc * 0.80;
-    let light_color = clamp(ambient + dir, vec3<f32>(0.0), vec3<f32>(2.0));
+    // Brighter baseline + a bit more headroom
+    let ambient = lights.ambient_color.rgb * 0.18;
+    let dir = dir_acc * 0.82;
+    let light_color = clamp(ambient + dir, vec3<f32>(0.0), vec3<f32>(2.1));
 
-    let wrap = 0.16 + w_skin * 0.08 + w_hair * (-0.05);
+    // Light wrap helps soften faces like Endfield
+    let wrap = 0.18 + w_skin * 0.10 + w_hair * (-0.04);
     let nd = saturate((key_ndotl + wrap) / (1.0 + wrap));
 
     let pivot_base = hsr_params.x + w_skin * (-0.03) + w_hair * (0.02);
     let pivot = pivot_base + (shadow_shift - 0.5) * 0.10;
 
-    let softness = max(hsr_params.y, 0.001) * (0.75 + w_skin * 0.30 + w_hair * (-0.35));
+    // Slightly softer transitions than hard anime ramps
+    let softness = max(hsr_params.y, 0.001) * (0.85 + w_skin * 0.35 + w_hair * (-0.25));
 
-    let e0 = toon_band(nd, pivot - 0.18, softness * 0.55);
-    let e1 = toon_band(nd, pivot,        softness);
-    let e2 = toon_band(nd, pivot + 0.18, softness * 0.85);
+    // 3-zone banding
+    let e0 = toon_band(nd, pivot - 0.18, softness * 0.60);
+    let e2 = toon_band(nd, pivot + 0.16, softness * 0.95);
 
     let w_shadow = 1.0 - e0;
     let w_mid    = e0 * (1.0 - e2);
     let w_light  = e2;
 
-    let tint_shadow_skin  = vec3<f32>(0.70, 0.58, 0.56);
-    let tint_shadow_hair  = vec3<f32>(0.52, 0.58, 0.78);
-    let tint_shadow_cloth = hsr_shadow_tint.rgb;
+    // Cooler and shallower shadows
+    let tint_shadow_skin  = vec3<f32>(0.84, 0.74, 0.76);
+    let tint_shadow_hair  = vec3<f32>(0.64, 0.70, 0.90);
+    let tint_shadow_cloth = mix(hsr_shadow_tint.rgb, vec3<f32>(0.56, 0.60, 0.74), 0.35);
 
     let shadow_tint =
         tint_shadow_cloth * w_cloth +
         tint_shadow_skin  * w_skin  +
         tint_shadow_hair  * w_hair;
 
-    let light_mul_skin  = vec3<f32>(1.03, 1.02, 1.00);
-    let light_mul_cloth = vec3<f32>(1.08, 1.05, 1.01);
+    let light_mul_skin  = vec3<f32>(1.04, 1.03, 1.01);
+    let light_mul_cloth = vec3<f32>(1.08, 1.05, 1.02);
     let light_mul_hair  = vec3<f32>(1.10, 1.07, 1.02);
 
     let light_mul =
@@ -225,25 +252,44 @@ fn toon_direct_lighting(
     let rgb_mid    = base.rgb;
     let rgb_light  = base.rgb * light_mul;
 
-    var rgb = rgb_shadow * w_shadow + rgb_mid * w_mid + rgb_light * w_light;
+    // Midtone push and renormalize
+    let w = lift_midtones(w_shadow, w_mid, w_light);
+    var rgb = rgb_shadow * w.x + rgb_mid * w.y + rgb_light * w.z;
+
+    // Apply lighting
     rgb *= light_color;
 
+    // Skin soft subsurface feel
+    rgb += soft_skin_sss(pbr_input.N, L_key, w_skin);
+
+    // Controlled specular (reduce plastic)
     let spec = toon_specular_masked(pbr_input.N, pbr_input.V, L_key, mat_id, spec_mask);
-    let spec_intensity = (0.02 * w_skin + 0.08 * w_cloth + 0.22 * w_hair);
+    let spec_intensity = (0.006 * w_skin + 0.06 * w_cloth + 0.15 * w_hair);
     rgb += spec * spec_intensity;
 
+    // Hair band highlight
     let hair_band = hair_band_highlight(pbr_input.N, pbr_input.V, L_key, mat_id, spec_mask);
-    rgb += hair_band * vec3<f32>(0.80, 0.90, 1.00) * 0.35;
+    rgb += hair_band * vec3<f32>(0.88, 0.95, 1.00) * 0.55;
 
-    let rim_mul = 0.55 + w_hair * 0.45 + w_skin * (-0.10);
+    // Rim (kept subtle)
+    let rim_mul = 0.50 + w_hair * 0.50 + w_skin * (-0.10);
     rgb = apply_rim(pbr_input, rgb, rim_mul);
 
-    let skin_lift = 0.10;
+    // Slight skin lift and cap
+    let skin_lift = 0.08;
     rgb = mix(rgb, rgb * (1.0 + skin_lift), w_skin);
+
+    let skin_cap = 0.94;
+    rgb = mix(rgb, min(rgb, vec3<f32>(skin_cap)), w_skin * 0.70);
 
     rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(20.0));
 
-    let tm = endfield_tonemap(rgb * 1.10);
+    let luma = dot(rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let shadow = 1.0 - smoothstep(0.25, 0.65, luma);
+    rgb = mix(rgb, mix(vec3<f32>(luma), rgb, 0.92), shadow * 0.35);
+
+    // Filmic output
+    let tm = endfield_tonemap(rgb * 1.08);
     let out_rgb = gamma_encode(tm);
 
     return vec4<f32>(out_rgb, base.a);
@@ -294,8 +340,6 @@ fn fragment(
     } else {
         out.color = pbr_input.material.base_color;
     }
-
-    // Intentionally not calling main_pass_post_lighting_processing here.
 #endif
 
 #ifdef OIT_ENABLED

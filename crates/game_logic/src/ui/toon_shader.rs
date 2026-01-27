@@ -49,12 +49,7 @@ pub struct HsrToonExtension {
 impl Default for HsrToonExtension {
     fn default() -> Self {
         Self {
-            toon_params: Vec4::new(
-                0.48,
-                0.14,
-                3.0,
-                0.08,
-            ),
+            toon_params: Vec4::new(0.54, 0.09, 3.2, 0.06),
             shadow_tint: Vec4::new(0.55, 0.50, 0.48, 1.0),
             rim_color:   Vec4::new(0.55, 0.55, 0.65, 1.0),
         }
